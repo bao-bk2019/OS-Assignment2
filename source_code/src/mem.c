@@ -89,6 +89,8 @@ static int translate(
 			 * to [p_index] field of page_table->table[i] to 
 			 * produce the correct physical address and save it to
 			 * [*physical_addr]  */
+			addr_t p_index = page_table->table[i].p_index; // physical page index
+			* physical_addr = (p_index << OFFSET_LEN) | (offset);
 			return 1;
 		}
 	}
