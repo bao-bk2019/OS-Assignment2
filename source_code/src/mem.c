@@ -62,8 +62,6 @@ static struct page_table_t * get_page_table(
 	return NULL;
 }
 
-
-
 /* Translate virtual address to physical address. If [virtual_addr] is valid,
  * return 1 and write its physical counterpart to [physical_addr].
  * Otherwise, return 0 */
@@ -185,12 +183,8 @@ addr_t alloc_mem(uint32_t size, struct pcb_t * proc) {
 		 * 	  valid. */
 		allocate_memory(ret_mem, num_pages, proc);
 	}
-
-	
-		printf("**********  Allocation  **********");
-		dump();
-	
-
+		// printf("**********  Allocation  **********");
+		// dump();
 	pthread_mutex_unlock(&mem_lock);
 	return ret_mem;
 }
@@ -238,8 +232,8 @@ int free_mem(addr_t address, struct pcb_t * proc) {
 			}
 		}
 	}
-		printf("============  Deallocation  ============");
-		dump();
+		// printf("********** Deallocation  **********");
+		// dump();
 	pthread_mutex_unlock(&mem_lock);
 	return 0;
 }
