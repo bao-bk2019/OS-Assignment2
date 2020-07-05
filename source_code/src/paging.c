@@ -15,6 +15,7 @@ int main(int argc, char ** argv) {
 	for (i = 0; i < proc->code->size; i++) {
 		run(proc);
 	}
+	printf("**************  Finall  ************** \n");
 	dump();
 	return 0;
 }

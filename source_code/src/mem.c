@@ -5,7 +5,7 @@
 #include <pthread.h>
 #include <stdio.h>
 
-static BYTE _ram[RAM_SIZE]; // data on ram, each cell is 1 char
+static BYTE _ram[RAM_SIZE]; 
 
 static struct {
 	uint32_t proc; 	// ID of process currently uses this page
@@ -15,14 +15,13 @@ static struct {
 _mem_stat [NUM_PAGES];
 
 static pthread_mutex_t mem_lock;
-static pthread_mutex_t ram_lock;
-
+//static pthread_mutex_t ram_lock;
 
 void init_mem(void) {
 	memset(_mem_stat, 0, sizeof(*_mem_stat) * NUM_PAGES);
 	memset(_ram, 0, sizeof(BYTE) * RAM_SIZE);
 	pthread_mutex_init(&mem_lock, NULL);
-	pthread_mutex_init(&ram_lock, NULL);
+	//pthread_mutex_init(&ram_lock, NULL);
 }
 
 /* get offset of the virtual address */
@@ -55,8 +54,8 @@ static struct page_table_t * get_page_table(
 
 	int i;
 	for (i = 0; i < seg_table->size; i++) {
-		if (seg_table->table[i].v_index == index) {
-			return seg_table->table[i].pages;
+		if (seg_table->table[i].v_index == index) { // find  table have v_index that we need
+			return seg_table->table[i].pages; // return page_table_t
 		}
 	}
 	return NULL;
@@ -96,38 +95,38 @@ static int translate(
 	return 0;
 }
 
-int memmory_available(int num_pages, struct pcb_t * proc) {
+int memory_available(int num_pages, struct pcb_t * proc) {
 	
-	// Check physical space
+	// Check physical space is available?
 	int i = 0;
 	int cnt_pages = 0; // count free pages
 	for (i = 0; i < NUM_PAGES; i++) {
-		if (_mem_stat[i].proc == 0) {// check this page is used by process ?
+		if (_mem_stat[i].proc == 0) {// check this page is used by any process ?
 			if (++cnt_pages == num_pages) break;// increace free pages, if free page is enough to allocate then break 
 		}
 	}
-	if (cnt_pages < num_pages) return 0;
+	if (cnt_pages < num_pages) return 0; // not available for allocating 
 
 	// Check virtual space
 	if (proc->bp + num_pages*PAGE_SIZE >= RAM_SIZE) return 0;// overload virtual space 
 
-	return 1;
+	return 1; // at the end mean memory is available 
 }
 
 void allocate_memory(int ret_mem, int num_pages, struct pcb_t * proc) {
 	int cnt_pages = 0; // count allocated pages
-	int last_allocated_page_index = -1; // use for update field [next] of last allocated page
+	int last_page_index = -1; // use for update field [next] of last allocated page
 	int i;
 	for (i = 0; i < NUM_PAGES; i++) {
-		if (_mem_stat[i].proc) continue; // page is used
+		if (_mem_stat[i].proc) continue; // page is used?
 
 		_mem_stat[i].proc = proc->pid; // the page is used by process [proc]
 		_mem_stat[i].index = cnt_pages; // index in list of allocated pages
 		
-		if (last_allocated_page_index > -1) { // not initial page, update last page
-			_mem_stat[last_allocated_page_index].next = i;
+		if (last_page_index > -1) { // not initial page, update last page
+			_mem_stat[last_page_index].next = i; //update next page
 		}
-		last_allocated_page_index = i; // update last page
+		last_page_index = i; // update last page
 
 		// Find or Create virtual page table
 		addr_t v_address = ret_mem + cnt_pages * PAGE_SIZE; // virtual address of this page
@@ -136,10 +135,13 @@ void allocate_memory(int ret_mem, int num_pages, struct pcb_t * proc) {
 		if (v_page_table == NULL) {
 			int idx = proc->seg_table->size;
 			proc->seg_table->table[idx].v_index = v_segment;
-			v_page_table = proc->seg_table->table[idx].pages = (struct page_table_t*) malloc(sizeof(struct page_table_t));
+			// Create virtual page table
+			v_page_table = proc->seg_table->table[idx].pages = 
+			(struct page_table_t*) malloc(sizeof(struct page_table_t));
+			// increace size of seg_table of this proc
 			proc->seg_table->size++;
 		}
-		int idx = v_page_table->size++;
+		int idx = v_page_table->size++;//previuos size is index of new table and increase size of v_page_table
 		v_page_table->table[idx].v_index = get_second_lv(v_address);
 		v_page_table->table[idx].p_index = i; // format of i is 10 bit segment and page in address
 
@@ -161,7 +163,7 @@ addr_t alloc_mem(uint32_t size, struct pcb_t * proc) {
 	uint32_t num_pages = size / PAGE_SIZE + (size % PAGE_SIZE ? 1 : 0);
 	
 	// memory available? We could allocate new memory region or not?
-	int mem_avail = memmory_available(num_pages, proc);
+	int mem_avail = memory_available(num_pages, proc);
 	/* First we must check if the amount of free memory in
 	 * virtual address space and physical address space is
 	 * large enough to represent the amount of required 
@@ -183,7 +185,7 @@ addr_t alloc_mem(uint32_t size, struct pcb_t * proc) {
 		 * 	  valid. */
 		allocate_memory(ret_mem, num_pages, proc);
 	}
-		// printf("**********  Allocation  **********");
+		// printf("**************  Allocation  **************\n");
 		// dump();
 	pthread_mutex_unlock(&mem_lock);
 	return ret_mem;
@@ -226,13 +228,13 @@ int free_mem(addr_t address, struct pcb_t * proc) {
 		int j;
 		for (j = 0; j < page_table->size; j++) {
 			if (page_table->table[j].v_index == v_page) {
-				int last = --page_table->size;
-				page_table->table[j] = page_table->table[last];
+				int last = --page_table->size; //update size of page_table_t
+				page_table->table[j] = page_table->table[last]; // remove page 
 				break;
 			}
 		}
 	}
-		// printf("********** Deallocation  **********");
+		// printf("**************  Deallocation  ************** \n");
 		// dump();
 	pthread_mutex_unlock(&mem_lock);
 	return 0;
@@ -241,9 +243,9 @@ int free_mem(addr_t address, struct pcb_t * proc) {
 int read_mem(addr_t address, struct pcb_t * proc, BYTE * data) {
 	addr_t physical_addr;
 	if (translate(address, &physical_addr, proc)) {
-		pthread_mutex_lock(&ram_lock);
+		//pthread_mutex_lock(&ram_lock);
 		*data = _ram[physical_addr];
-		pthread_mutex_unlock(&ram_lock);
+		//pthread_mutex_unlock(&ram_lock);
 		return 0;
 	}
 	return 1;
@@ -252,9 +254,9 @@ int read_mem(addr_t address, struct pcb_t * proc, BYTE * data) {
 int write_mem(addr_t address, struct pcb_t * proc, BYTE data) {
 	addr_t physical_addr;
 	if (translate(address, &physical_addr, proc)) {
-		pthread_mutex_lock(&ram_lock);
+		//pthread_mutex_lock(&ram_lock);
 		_ram[physical_addr] = data;
-		pthread_mutex_unlock(&ram_lock);
+		//pthread_mutex_unlock(&ram_lock);
 		return 0;
 	}
 	return 1;
